@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${pageTitle}">User Data Retrieval SQL Injection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <link href="/css/attack-pages.css" rel="stylesheet">
+</head>
+<body>
+    <div class="main-container">
+        <div class="header-section">
+            <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Torna alla Dashboard</a>
+            <h1 class="page-title mt-3" th:text="${pageTitle}">Recupero Dati Utente</h1>
+            <p class="lead" th:text="${description}">Estrai record multipli dal database usando injection OR</p>
+        </div>
+        
+        <div class="test-container vulnerable-section">
+            <div class="section-title">
+                <i class="fas fa-bug"></i> Inserisci l'ID per estrarre il nome utente associato
+            </div>
+            <form onsubmit="testVulnerable(event)">
+                <div class="mb-3">
+                    <label class="form-label"><i class="fas fa-id-card"></i> ID Utente</label>
+                    <input type="text" class="form-control" id="userIdVuln" required>
+                </div>
+                <button type="submit" class="btn btn-vulnerable">Test</button>
+            </form>
+            <div class="payload-examples">
+                <h6><i class="fas fa-code"></i> Payload di Esempio (Clicca per usare):</h6>
+                <div class="payload-item-styled" onclick="document.getElementById('userIdVuln').value=&quot;1' OR '1'='1&quot;">
+                    <strong>Injection OR:</strong> 1' OR '1'='1
+                </div>
+                <div class="payload-item-styled" onclick="document.getElementById('userIdVuln').value=&quot;999' OR 1=1 --&quot;">
+                    <strong>OR con commento:</strong> 999' OR 1=1 --
+                </div>
+            </div>
+            <div id="resultVulnerable" class="result-box"></div>
+        </div>
+    </div>
+    <script>
+        async function testVulnerable(event) {
+            event.preventDefault();
+            const userId = document.getElementById('userIdVuln').value;
+            const response = await fetch('/user-retrieval/vulnerable', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: `userId=${encodeURIComponent(userId)}`
+            });
+            const data = await response.json();
+            displayResult('resultVulnerable', data);
+        }
+        
+        
+        function displayResult(containerId, data) {
+            const container = document.getElementById(containerId);
+            container.style.display = 'block';
+            container.className = 'result-box ' + (data.severity === 'CRITICAL' ? 'critical' : 'safe');
+            
+            let html = '';
+            
+            // Show query result data if available
+            if (data.data && data.data.trim() !== '') {
+                html += `
+                    <div style="background: #f8f9fa; border: 2px solid ${data.severity === 'CRITICAL' ? '#dc3545' : '#28a745'}; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                        <div style="font-weight: 600; font-size: 14px; color: #495057; margin-bottom: 8px;">📊 Query Result:</div>
+                        <div style="background: white; padding: 12px; border-radius: 6px; font-family: 'Courier New', monospace; color: #212529; font-size: 14px; white-space: normal; word-break: break-word; text-align: left;">
+                            ${escapeHtml(data.data.trim())}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show vulnerability message
+            html += `<div class="result-message">${data.message}</div>`;
+            
+            // Show executed query
+            html += `
+                <div class="query-box">
+                    <code class="language-sql">${escapeHtml(data.query)}</code>
+                </div>
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <span class="stat-label">Duration:</span> ${data.duration}ms
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+            container.querySelectorAll('code').forEach(block => hljs.highlightElement(block));
+        }
+        
+        function escapeHtml(text) {
+            const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+    </script>
+</body>
+</html>
